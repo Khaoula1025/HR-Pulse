@@ -1,59 +1,115 @@
-import re
 import pandas as pd
-def audit_salary_symbols(df: pd.DataFrame, column_name: str):
-    """
-    Checks for unexpected symbols in the salary column.
-    Expected: '$', 'K', '-', ' ', '(', ')', '.', 'digits'
-    Unexpected: 'M', 'B', '€', '£', etc.
-    """
-    # Regex pattern: find anything that is NOT a digit, $, K, -, space, period, or parenthesis
-    # [^ ...] means "NOT these characters"
-    unexpected_pattern = r"[^0-9\$Kk\-\s\.\(\)a-zA-Z]" 
-    
-    # Identify rows with 'M' or 'B' specifically
-    million_rows = df[df[column_name].str.contains(r'M', na=False, case=False)]
-    billion_rows = df[df[column_name].str.contains(r'B', na=False, case=False)]
-    
-    # Identify rows with strange non-standard symbols
-    strange_symbols = df[df[column_name].str.contains(unexpected_pattern, na=False)]
+from preprocessing_utils import (
+    replace_negative_ones,
+    clean_for_embedding,
+    clean_company_name,
+    extract_seniority,
+    extract_core_role,
+    clean_job_title,
+    process_salary,
+    encode_size,
+    encode_revenue,
+    parse_location,
+    US_STATES,
+    OWNERSHIP_MAP,
+)
+INPUT_PATH  = "jobs.csv"
+OUTPUT_PATH = "jobs_cleaned.csv"
 
-    print(f"--- Salary Audit Report for '{column_name}' ---")
-    print(f"Total Rows: {len(df)}")
-    print(f"Rows with 'M' (Millions): {len(million_rows)}")
-    print(f"Rows with 'B' (Billions): {len(billion_rows)}")
-    print(f"Rows with unexpected symbols: {len(strange_symbols)}")
-    
-    if not strange_symbols.empty:
-        print("\nExamples of strange entries:")
-        print(strange_symbols[column_name].head(5).values)
-        
-    return strange_symbols
+# PIPELINE
 
-# price=audit_salary_symbols(pd.read_csv("backend/data/raw/jobs.csv"), "Salary Estimate")
-# print(price)
-def parse_salary(salary_str: str) -> float | None:
-    """Convert '$137K-$171K (Glassdoor est.)' to 154000.0"""
-    if not isinstance(salary_str,str) or salary_str.lower()=='nan':
-        return None
-    try:
-        multiplier=1000 # if k 
-        if 'M' in salary_str.upper():
-            multiplier=1000000
-        # return only digits d+ and if comma exist return does numbers as well 
-        numbers = re.findall(r"\d+\.?\d*", salary_str)
-        if len(numbers) >= 2:
-            return (float(numbers[0]) + float(numbers[1])) * multiplier / 2
-        elif len(numbers) == 1:
-            return float(numbers[0]) * multiplier
-        return None
-    except Exception:
-         return None
+def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
 
-def clean_size(size_str: str) -> float:
-    """Convert '1001 to 5000 employees' to midpoint 3000.0"""
-    numbers = re.findall(r"\d+", size_str.replace(",", ""))
-    if len(numbers) >= 2:
-        return (int(numbers[0]) + int(numbers[1])) / 2
-    elif "10000+" in size_str:
-        return 15000.0
-    return 0.0
+    print(f"Loading data from {input_path}...")
+    df = pd.read_csv(input_path)
+    print(f"Shape: {df.shape}\n")
+
+    # ── Step 1: Replace -1 sentinels ─────────────────────────────────────────
+    print("Step 1: Replacing -1 sentinel values...")
+    df = replace_negative_ones(df)
+
+    # ── Step 2: Job Description ───────────────────────────────────────────────
+    print("Step 2: Cleaning Job Description for embedding...")
+    df["Job Description"] = df["Job Description"].apply(clean_for_embedding)
+
+    # ── Step 3: Company Name ──────────────────────────────────────────────────
+    print("Step 3: Cleaning Company Name...")
+    df["Company Name"] = df["Company Name"].apply(clean_company_name)
+
+    # ── Step 4: Job Title → cleaned + seniority + core role ──────────────────
+    print("Step 4: Processing Job Title...")
+    df["seniority"]  = df["Job Title"].apply(extract_seniority)   # extract BEFORE cleaning
+    df["core_role"]  = df["Job Title"].apply(extract_core_role)
+    df["Job Title"]  = df["Job Title"].apply(clean_job_title)
+
+    # ── Step 5: Salary ────────────────────────────────────────────────────────
+    print("Step 5: Parsing Salary Estimate...")
+    df["salary_parsed"] = process_salary(df, "Salary Estimate", audit=True)
+
+    # ── Step 6: Size ──────────────────────────────────────────────────────────
+    print("Step 6: Encoding Size...")
+    size_encoded = df["Size"].apply(encode_size)
+    df["size_ordinal"] = size_encoded.apply(lambda x: x[0])
+    df["size_is_top"]  = size_encoded.apply(lambda x: x[1])
+
+    # ── Step 7: Revenue ───────────────────────────────────────────────────────
+    print("Step 7: Encoding Revenue...")
+    rev_encoded = df["Revenue"].apply(encode_revenue)
+    df["revenue_ordinal"] = rev_encoded.apply(lambda x: x[0])
+    df["revenue_is_top"]  = rev_encoded.apply(lambda x: x[1])
+
+    # ── Step 8: Location & Headquarters ──────────────────────────────────────
+    print("Step 8: Parsing Location and Headquarters...")
+    df[["job_city", "job_state"]] = df["Location"].apply(
+        lambda x: pd.Series(parse_location(x))
+    )
+    df[["hq_city", "hq_state"]] = df["Headquarters"].apply(
+        lambda x: pd.Series(parse_location(x))
+    )
+    df["is_remote"]           = df["Location"].str.lower().eq("remote").astype(int)
+    df["is_at_hq"]            = (df["Location"] == df["Headquarters"]).astype(int)
+    df["hq_is_international"] = df["hq_state"].apply(
+        lambda s: 0 if pd.isna(s) or s in US_STATES else 1
+    )
+    df = df.drop(columns=["Location", "Headquarters"])
+
+    # ── Step 9: Type of Ownership ─────────────────────────────────────────────
+    print("Step 9: Grouping Type of Ownership...")
+    df["ownership_grouped"] = df["Type of ownership"].map(OWNERSHIP_MAP)
+
+    # ── Step 10: Drop redundant columns ───────────────────────────────────────
+    print("Step 10: Dropping redundant columns...")
+    df = df.drop(columns=[
+        "Industry",          # redundant with Sector (Sector is the parent)
+        "job_city",          # too high cardinality (200+ unique cities)
+        "hq_city",           # same reason
+        "Type of ownership", # replaced by ownership_grouped
+    ])
+
+    # ── Done ──────────────────────────────────────────────────────────────────
+    print(f"\nPipeline complete. Final shape: {df.shape}")
+    print(f"Saving to {output_path}...")
+    df.to_csv(output_path, index=False)
+    print("Done.")
+
+    return df
+
+# ENTRY POINT
+
+if __name__ == "__main__":
+    df_clean = run_pipeline(INPUT_PATH, OUTPUT_PATH)
+
+    print("\n=== COLUMN OVERVIEW ===")
+    print(df_clean.dtypes.to_string())
+
+    print("\n=== MISSING VALUES ===")
+    missing = df_clean.isna().sum()
+    missing = missing[missing > 0].sort_values(ascending=False)
+    print(missing.to_string() if not missing.empty else "None")
+
+    print("\n=== SAMPLE (5 rows, key columns) ===")
+    print(df_clean[[
+        "Company Name", "Job Title", "seniority", "core_role",
+        "salary_parsed", "job_state", "size_ordinal", "revenue_ordinal",
+        "ownership_grouped", "is_remote", "is_at_hq"
+    ]].head().to_string())
