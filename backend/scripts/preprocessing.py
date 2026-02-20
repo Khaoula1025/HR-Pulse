@@ -3,9 +3,7 @@ from preprocessing_utils import (
     replace_negative_ones,
     clean_for_embedding,
     clean_company_name,
-    extract_seniority,
-    extract_core_role,
-    clean_job_title,
+    parse_job_title,
     process_salary,
     encode_size,
     encode_revenue,
@@ -13,8 +11,8 @@ from preprocessing_utils import (
     US_STATES,
     OWNERSHIP_MAP,
 )
-INPUT_PATH  = "jobs.csv"
-OUTPUT_PATH = "jobs_cleaned.csv"
+INPUT_PATH  = "backend/data/raw/jobs.csv"
+OUTPUT_PATH = "backend/data/processed/jobs_cleaned.csv"
 
 # PIPELINE
 
@@ -38,13 +36,12 @@ def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
 
     # ── Step 4: Job Title → cleaned + seniority + core role ──────────────────
     print("Step 4: Processing Job Title...")
-    df["seniority"]  = df["Job Title"].apply(extract_seniority)   # extract BEFORE cleaning
-    df["core_role"]  = df["Job Title"].apply(extract_core_role)
-    df["Job Title"]  = df["Job Title"].apply(clean_job_title)
-
+    parsed = df["Job Title"].apply(parse_job_title).apply(pd.Series)
+    df["seniority"] = parsed["seniority"]
+    df["job_title"] = parsed["core_role"] + " - " + parsed["clean_title"]
     # ── Step 5: Salary ────────────────────────────────────────────────────────
     print("Step 5: Parsing Salary Estimate...")
-    df["salary_parsed"] = process_salary(df, "Salary Estimate", audit=True)
+    df["Salary"] = process_salary(df, "Salary Estimate", audit=True)
 
     # ── Step 6: Size ──────────────────────────────────────────────────────────
     print("Step 6: Encoding Size...")
@@ -71,11 +68,11 @@ def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
     df["hq_is_international"] = df["hq_state"].apply(
         lambda s: 0 if pd.isna(s) or s in US_STATES else 1
     )
-    df = df.drop(columns=["Location", "Headquarters"])
+    df = df.drop(columns=["Location", "Headquarters",'Job Title'])  # drop original columns after parsing
 
     # ── Step 9: Type of Ownership ─────────────────────────────────────────────
     print("Step 9: Grouping Type of Ownership...")
-    df["ownership_grouped"] = df["Type of ownership"].map(OWNERSHIP_MAP)
+    df["type_of_ownership"] = df["Type of ownership"].map(OWNERSHIP_MAP)
 
     # ── Step 10: Drop redundant columns ───────────────────────────────────────
     print("Step 10: Dropping redundant columns...")
@@ -106,10 +103,3 @@ if __name__ == "__main__":
     missing = df_clean.isna().sum()
     missing = missing[missing > 0].sort_values(ascending=False)
     print(missing.to_string() if not missing.empty else "None")
-
-    print("\n=== SAMPLE (5 rows, key columns) ===")
-    print(df_clean[[
-        "Company Name", "Job Title", "seniority", "core_role",
-        "salary_parsed", "job_state", "size_ordinal", "revenue_ordinal",
-        "ownership_grouped", "is_remote", "is_at_hq"
-    ]].head().to_string())

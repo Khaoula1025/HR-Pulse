@@ -129,20 +129,6 @@ def clean_company_name(name: str) -> str:
 
 # 4. JOB TITLE — normalize + extract structured features
 
-def clean_job_title(title: str) -> str:
-    """
-    Lowercases, removes location suffixes and special characters.
-    e.g. 'Sr Data Scientist - Bay Area, CA' → 'sr data scientist'
-    """
-    if pd.isna(title):
-        return title
-    title = re.sub(r"\s*[-–]\s*[A-Z][a-zA-Z\s,]+(?:[A-Z]{2})\s*$", "", title)
-    title = title.lower().strip()
-    title = re.sub(r"[^a-z0-9\s\-/]", " ", title)
-    title = re.sub(r"\s+", " ", title).strip()
-    return title
-
-
 SENIORITY_MAP = {
     r"\bsr\.?\b|\bsenior\b":       "Senior",
     r"\bjr\.?\b|\bjunior\b":       "Junior",
@@ -154,17 +140,6 @@ SENIORITY_MAP = {
     r"\bentry[\s-]level\b":        "Junior",
 }
 
-def extract_seniority(title: str) -> str:
-    """Extracts seniority level from raw job title."""
-    if pd.isna(title):
-        return "Mid-level"
-    title_lower = title.lower()
-    for pattern, label in SENIORITY_MAP.items():
-        if re.search(pattern, title_lower):
-            return label
-    return "Mid-level"
-
-
 ROLE_MAP = {
     r"data scien":               "Data Scientist",
     r"data engineer":            "Data Engineer",
@@ -175,16 +150,40 @@ ROLE_MAP = {
     r"business intel":           "BI Analyst",
     r"statistician":             "Statistician",
 }
-
-def extract_core_role(title: str) -> str:
-    """Maps job title to a core role category."""
+def parse_job_title(title: str) -> dict:
+    """
+    Cleans a job title and extracts seniority + core role in one pass.
+    
+    e.g. 'Sr Data Scientist - Bay Area, CA' → {
+        'clean_title': 'sr data scientist',
+        'seniority':   'Senior',
+        'core_role':   'Data Scientist'
+    }
+    """
     if pd.isna(title):
-        return "Other"
-    title_lower = title.lower()
+        return {"clean_title": title, "seniority": "Mid-level", "core_role": "Other"}
+
+    # Clean
+    clean = re.sub(r"\s*[-–]\s*[A-Z][a-zA-Z\s,]+(?:[A-Z]{2})\s*$", "", title)
+    clean = clean.lower().strip()
+    clean = re.sub(r"[^a-z0-9\s\-/]", " ", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+
+    # Extract seniority
+    seniority = "Mid-level"
+    for pattern, label in SENIORITY_MAP.items():
+        if re.search(pattern, clean):
+            seniority = label
+            break
+
+    # Extract core role
+    core_role = "Other"
     for pattern, role in ROLE_MAP.items():
-        if re.search(pattern, title_lower):
-            return role
-    return "Other"
+        if re.search(pattern, clean):
+            core_role = role
+            break
+
+    return {"clean_title": clean, "seniority": seniority, "core_role": core_role}
 
 # 5. SALARY — audit + parse to numeric midpoint
 
