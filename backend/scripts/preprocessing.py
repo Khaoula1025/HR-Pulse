@@ -48,7 +48,7 @@ def parse_salary(salary_str: str) -> float | None:
         return None
     except Exception:
          return None
-   
+
 def clean_size(size_str: str) -> float:
     """Convert '1001 to 5000 employees' to midpoint 3000.0"""
     numbers = re.findall(r"\d+", size_str.replace(",", ""))
