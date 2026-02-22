@@ -1,8 +1,19 @@
+"""
+preprocessing_utils.py
+-----------------------
+All cleaning and encoding functions for the Glassdoor jobs dataset.
+Imported and called by preprocessing.py.
+"""
+
 import re
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 
+# =============================================================================
+# 1. REPLACE -1 SENTINEL VALUES
+# =============================================================================
 
 def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -10,7 +21,8 @@ def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
     Binarizes the Competitors column due to ~75% missingness.
     """
     df = df.copy()
-    # Numeric: -1 → NaN (preserves valid imputation downstream)
+
+    # Numeric: -1 → NaN
     for col in ["Rating", "Founded"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").replace(-1, np.nan)
 
@@ -21,13 +33,16 @@ def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
     # Unify Revenue unknown labels
     df["Revenue"] = df["Revenue"].replace("Unknown / Non-Applicable", "Unknown")
 
-    # Competitors: too sparse (~75% missing) → binarize
+    # Competitors: ~75% missing → binarize
     df["has_competitors"] = (df["Competitors"] != "-1").astype(int)
     df = df.drop(columns=["Competitors"])
 
     return df
 
-#2- JOB DESCRIPTION 
+
+# =============================================================================
+# 2. JOB DESCRIPTION — embedding-ready cleaning
+# =============================================================================
 
 EEO_CUTOFF_PATTERNS = [
     # Slash variants
@@ -119,7 +134,10 @@ def clean_for_embedding(text: str) -> str:
 
     return text
 
-# 3. COMPANY NAME — remove rating 
+
+# =============================================================================
+# 3. COMPANY NAME — strip embedded Glassdoor rating
+# =============================================================================
 
 def clean_company_name(name: str) -> str:
     """'Healthfirst\\n3.1' → 'Healthfirst'"""
@@ -127,7 +145,10 @@ def clean_company_name(name: str) -> str:
         return name
     return name.split("\n")[0].strip()
 
+
+# =============================================================================
 # 4. JOB TITLE — normalize + extract structured features
+# =============================================================================
 
 SENIORITY_MAP = {
     r"\bsr\.?\b|\bsenior\b":       "Senior",
@@ -141,89 +162,95 @@ SENIORITY_MAP = {
 }
 
 ROLE_MAP = {
-    r"data scien":               "Data Scientist",
-    r"data engineer":            "Data Engineer",
-    r"data analyst":             "Data Analyst",
+    r"data scien":                   "Data Scientist",
+    r"data engineer":                "Data Engineer",
+    r"data analyst":                 "Data Analyst",
     r"machine learning|ml engineer": "ML Engineer",
-    r"data modeler":             "Data Modeler",
-    r"research scien":           "Research Scientist",
-    r"business intel":           "BI Analyst",
-    r"statistician":             "Statistician",
+    r"data modeler":                 "Data Modeler",
+    r"research scien":               "Research Scientist",
+    r"business intel":               "BI Analyst",
+    r"statistician":                 "Statistician",
 }
+
+
 def parse_job_title(title: str) -> dict:
     """
     Cleans a job title and extracts seniority + core role in one pass.
-    
-    e.g. 'Sr Data Scientist - Bay Area, CA' → {
-        'clean_title': 'sr data scientist',
-        'seniority':   'Senior',
-        'core_role':   'Data Scientist'
-    }
+
+    Returns a dict with three keys:
+      - job_title  : cleaned, lowercased title (used for embeddings if needed)
+      - seniority  : seniority level extracted from raw title
+      - core_role  : standardized role category (8 categories + 'Other')
+
+    Keeping job_title and core_role as separate columns is intentional:
+      - job_title  → too high cardinality (169 unique) for direct encoding;
+                     useful only as text input for embeddings
+      - core_role  → 8 clean categories, directly encodable as a feature
     """
     if pd.isna(title):
-        return {"clean_title": title, "seniority": "Mid-level", "core_role": "Other"}
+        return {"job_title": title, "seniority": "Mid-level", "core_role": "Other"}
 
-    # Clean
+    # Extract seniority from RAW title before lowercasing/cleaning
+    seniority = "Mid-level"
+    for pattern, label in SENIORITY_MAP.items():
+        if re.search(pattern, title, flags=re.IGNORECASE):
+            seniority = label
+            break
+
+    # Clean title
     clean = re.sub(r"\s*[-–]\s*[A-Z][a-zA-Z\s,]+(?:[A-Z]{2})\s*$", "", title)
     clean = clean.lower().strip()
     clean = re.sub(r"[^a-z0-9\s\-/]", " ", clean)
     clean = re.sub(r"\s+", " ", clean).strip()
 
-    # Extract seniority
-    seniority = "Mid-level"
-    for pattern, label in SENIORITY_MAP.items():
-        if re.search(pattern, clean):
-            seniority = label
-            break
-
-    # Extract core role
+    # Extract core role from cleaned title
     core_role = "Other"
     for pattern, role in ROLE_MAP.items():
         if re.search(pattern, clean):
             core_role = role
             break
 
-    return {"clean_title": clean, "seniority": seniority, "core_role": core_role}
+    return {"job_title": clean, "seniority": seniority, "core_role": core_role}
 
-# 5. SALARY — audit + parse to numeric midpoint
 
-def process_salary(df: pd.DataFrame, column_name: str, audit: bool = True) -> pd.Series:
+# =============================================================================
+# 5. SALARY — parse string to numeric midpoint
+# =============================================================================
+
+def process_salary(salary_str: str) -> float | None:
     """
-    Audits and parses salary strings into float midpoints.
-    '$137K-$171K (Glassdoor est.)' → 154000.0
-    """
-    if audit:
-        unexpected_pattern = r"[^0-9\$KkMmBb\-\s\.\(\)a-zA-Z]"
-        million_rows = df[df[column_name].str.contains(r'M', na=False, case=False)]
-        billion_rows = df[df[column_name].str.contains(r'B', na=False, case=False)]
-        strange_rows = df[df[column_name].str.contains(unexpected_pattern, na=False)]
-        print(f"--- Salary Audit: '{column_name}' ---")
-        print(f"  Total rows            : {len(df)}")
-        print(f"  Rows with M (millions): {len(million_rows)}")
-        print(f"  Rows with B (billions): {len(billion_rows)}")
-        print(f"  Rows with odd symbols : {len(strange_rows)}")
-        if not strange_rows.empty:
-            print(f"  Examples: {strange_rows[column_name].head(3).values}")
-        print()
+    Parses a salary string into a float midpoint.
+    Handles K (thousands) and M (millions) multipliers correctly:
+    M multiplier is only applied when K is absent to avoid the
+    '$145K-$225K(Employer est.)' → $185,000,000 bug.
 
-    def _parse(salary_str: str) -> float | None:
-        if not isinstance(salary_str, str) or salary_str.lower() == "nan":
-            return None
-        try:
-            multiplier = 1_000_000 if "M" in salary_str.upper() else 1_000
-            numbers = re.findall(r"\d+\.?\d*", salary_str)
-            if len(numbers) >= 2:
-                return (float(numbers[0]) + float(numbers[1])) * multiplier / 2
-            elif len(numbers) == 1:
-                return float(numbers[0]) * multiplier
-        except Exception:
-            pass
+    Examples:
+        '$137K-$171K (Glassdoor est.)' → 154000.0
+        '$1.2M-$1.5M (Glassdoor est.)' → 1350000.0
+        '$145K-$225K(Employer est.)'   → 185000.0
+    """
+    if not isinstance(salary_str, str) or salary_str.lower() == "nan":
+        return None
+    try:
+        upper = salary_str.upper()
+        if "M" in upper and "K" not in upper:
+            multiplier = 1_000_000
+        else:
+            multiplier = 1_000
+
+        numbers = re.findall(r"\d+\.?\d*", salary_str)
+        if len(numbers) >= 2:
+            return (float(numbers[0]) + float(numbers[1])) * multiplier / 2
+        elif len(numbers) == 1:
+            return float(numbers[0]) * multiplier
+        return None
+    except Exception:
         return None
 
-    return df[column_name].apply(_parse)
 
-
+# =============================================================================
 # 6. SIZE — ordinal encoding
+# =============================================================================
 
 SIZE_ORDINAL = {
     "1 to 50 employees":       1,
@@ -236,6 +263,7 @@ SIZE_ORDINAL = {
     "Unknown":                 np.nan,
 }
 
+
 def encode_size(size: str) -> tuple:
     """
     Returns (ordinal_rank, is_top_size).
@@ -247,7 +275,9 @@ def encode_size(size: str) -> tuple:
     return ordinal, is_top
 
 
+# =============================================================================
 # 7. REVENUE — ordinal encoding
+# =============================================================================
 
 REVENUE_ORDINAL = {
     "Less than $1 million (USD)":        1,
@@ -265,6 +295,7 @@ REVENUE_ORDINAL = {
     "Unknown":                           np.nan,
 }
 
+
 def encode_revenue(revenue: str) -> tuple:
     """
     Returns (ordinal_rank, is_top_revenue).
@@ -276,7 +307,9 @@ def encode_revenue(revenue: str) -> tuple:
     return ordinal, is_top
 
 
-# 8. LOCATION & HEADQUARTERS — parse + engineer binary features
+# =============================================================================
+# 8. LOCATION & HEADQUARTERS
+# =============================================================================
 
 US_STATES = {
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
@@ -285,6 +318,7 @@ US_STATES = {
     "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
     "WI", "WY", "DC"
 }
+
 
 def parse_location(loc: str) -> tuple:
     """'New York, NY' → ('New York', 'NY')"""
@@ -296,7 +330,9 @@ def parse_location(loc: str) -> tuple:
     return parts[0], np.nan
 
 
-# 9. TYPE OF OWNERSHIP — group and encode
+# =============================================================================
+# 9. TYPE OF OWNERSHIP
+# =============================================================================
 
 OWNERSHIP_MAP = {
     "Company - Private":              "Private",
@@ -312,3 +348,86 @@ OWNERSHIP_MAP = {
     "Other Organization":             "Other",
     "Unknown":                        "Unknown",
 }
+
+
+# =============================================================================
+# 10. OUTLIER & NULL HANDLING
+# =============================================================================
+
+def handle_outliers_and_nulls(
+    df: pd.DataFrame,
+    iqr_multiplier: float = 1.5,
+    z_threshold: float = 3.0,
+) -> pd.DataFrame:
+    """
+    Handles outliers and missing values — call at the end of the pipeline
+    after all columns have been created.
+
+    Outlier strategy:
+      - Salary    : winsorized at IQR bounds
+      - Rating    : z-score clip at ±3 std (valid range 0–5)
+      - Founded   : IQR winsorize (very old years valid but distorting)
+
+    Null strategy:
+      - Numeric / ordinal  → median imputation
+      - Categorical        → fill with 'Unknown'
+    """
+    df = df.copy()
+
+    def iqr_bounds(series: pd.Series):
+        Q1 = series.quantile(0.25)
+        Q3 = series.quantile(0.75)
+        IQR = Q3 - Q1
+        return Q1 - iqr_multiplier * IQR, Q3 + iqr_multiplier * IQR
+
+    # ------------------------------------------------------------------
+    # 1. SALARY — drop nulls then winsorize
+    # ------------------------------------------------------------------
+    if "Salary" in df.columns:
+        nulls = df["Salary"].isna().sum()
+        if nulls > 0:
+            df = df.dropna(subset=["Salary"])
+
+        lower, upper = iqr_bounds(df["Salary"])
+        df["Salary"] = df["Salary"].clip(lower=lower, upper=upper)
+
+    # ------------------------------------------------------------------
+    # 2. RATING — z-score clip then median impute
+    # ------------------------------------------------------------------
+    if "Rating" in df.columns:
+        valid_rating = df["Rating"].dropna()
+        if len(valid_rating) > 1:
+            mean_r, std_r = valid_rating.mean(), valid_rating.std()
+            df["Rating"] = df["Rating"].clip(
+                lower=mean_r - z_threshold * std_r,
+                upper=mean_r + z_threshold * std_r,
+            )
+        df["Rating"] = df["Rating"].fillna(df["Rating"].median())
+
+    # ------------------------------------------------------------------
+    # 3. FOUNDED — IQR winsorize then median impute
+    # ------------------------------------------------------------------
+    if "Founded" in df.columns:
+        valid_founded = df["Founded"].dropna()
+        if len(valid_founded) > 1:
+            lower_f, upper_f = iqr_bounds(valid_founded)
+            df["Founded"] = df["Founded"].clip(lower=lower_f, upper=upper_f)
+        df["Founded"] = df["Founded"].fillna(df["Founded"].median())
+
+    # ------------------------------------------------------------------
+    # 4. ORDINAL FEATURES — median impute
+    # ------------------------------------------------------------------
+    for col in ["size_ordinal", "revenue_ordinal"]:
+        if col in df.columns and df[col].isna().sum() > 0:
+            df[col] = df[col].fillna(df[col].median())
+
+    # ------------------------------------------------------------------
+    # 5. CATEGORICAL FEATURES — fill with 'Unknown'
+    # ------------------------------------------------------------------
+    cat_cols = ["job_state", "hq_state", "type_of_ownership",
+                "Sector", "seniority", "core_role"]
+    for col in cat_cols:
+        if col in df.columns and df[col].isna().sum() > 0:
+            df[col] = df[col].fillna("Unknown")
+
+    return df
