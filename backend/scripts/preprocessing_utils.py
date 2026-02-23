@@ -1,20 +1,9 @@
-"""
-preprocessing_utils.py
------------------------
-All cleaning and encoding functions for the Glassdoor jobs dataset.
-Imported and called by preprocessing.py.
-"""
-
 import re
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-
-# =============================================================================
-# 1. REPLACE -1 SENTINEL VALUES
-# =============================================================================
-
+# 1. replace -1 sentinels with NaN (numeric) or 'Unknown' (categorical)
 def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
     """
     Replaces -1 sentinel values with NaN (numeric) or 'Unknown' (categorical).
@@ -39,11 +28,7 @@ def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
-# =============================================================================
 # 2. JOB DESCRIPTION — embedding-ready cleaning
-# =============================================================================
-
 EEO_CUTOFF_PATTERNS = [
     # Slash variants
     r"is an (eeo|affirmative action)\s*[/\\]",
@@ -134,22 +119,14 @@ def clean_for_embedding(text: str) -> str:
 
     return text
 
-
-# =============================================================================
 # 3. COMPANY NAME — strip embedded Glassdoor rating
-# =============================================================================
-
 def clean_company_name(name: str) -> str:
     """'Healthfirst\\n3.1' → 'Healthfirst'"""
     if pd.isna(name):
         return name
     return name.split("\n")[0].strip()
 
-
-# =============================================================================
 # 4. JOB TITLE — normalize + extract structured features
-# =============================================================================
-
 SENIORITY_MAP = {
     r"\bsr\.?\b|\bsenior\b":       "Senior",
     r"\bjr\.?\b|\bjunior\b":       "Junior",
@@ -212,11 +189,7 @@ def parse_job_title(title: str) -> dict:
 
     return {"job_title": clean, "seniority": seniority, "core_role": core_role}
 
-
-# =============================================================================
 # 5. SALARY — parse string to numeric midpoint
-# =============================================================================
-
 def process_salary(salary_str: str) -> float | None:
     """
     Parses a salary string into a float midpoint.
@@ -247,11 +220,7 @@ def process_salary(salary_str: str) -> float | None:
     except Exception:
         return None
 
-
-# =============================================================================
 # 6. SIZE — ordinal encoding
-# =============================================================================
-
 SIZE_ORDINAL = {
     "1 to 50 employees":       1,
     "51 to 200 employees":     2,
@@ -274,11 +243,7 @@ def encode_size(size: str) -> tuple:
     is_top  = 1 if size == "10000+ employees" else 0
     return ordinal, is_top
 
-
-# =============================================================================
 # 7. REVENUE — ordinal encoding
-# =============================================================================
-
 REVENUE_ORDINAL = {
     "Less than $1 million (USD)":        1,
     "$1 to $5 million (USD)":            2,
@@ -306,11 +271,7 @@ def encode_revenue(revenue: str) -> tuple:
     is_top  = 1 if revenue == "$10+ billion (USD)" else 0
     return ordinal, is_top
 
-
-# =============================================================================
 # 8. LOCATION & HEADQUARTERS
-# =============================================================================
-
 US_STATES = {
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
     "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
@@ -329,11 +290,7 @@ def parse_location(loc: str) -> tuple:
         return parts[0], parts[1]
     return parts[0], np.nan
 
-
-# =============================================================================
 # 9. TYPE OF OWNERSHIP
-# =============================================================================
-
 OWNERSHIP_MAP = {
     "Company - Private":              "Private",
     "Company - Public":               "Public",
@@ -349,11 +306,7 @@ OWNERSHIP_MAP = {
     "Unknown":                        "Unknown",
 }
 
-
-# =============================================================================
 # 10. OUTLIER & NULL HANDLING
-# =============================================================================
-
 def handle_outliers_and_nulls(
     df: pd.DataFrame,
     iqr_multiplier: float = 1.5,

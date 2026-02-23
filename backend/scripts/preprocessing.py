@@ -1,16 +1,3 @@
-"""
-preprocessing.py
-----------------
-Calls all cleaning functions from preprocessing_utils.py
-and runs the full pipeline.
-
-Usage:
-    python preprocessing.py
-
-Output:
-    backend/data/processed/jobs_cleaned.csv
-"""
-
 import pandas as pd
 from preprocessing_utils import (
     replace_negative_ones,
@@ -28,11 +15,6 @@ from preprocessing_utils import (
 
 INPUT_PATH  = "backend/data/raw/jobs.csv"
 OUTPUT_PATH = "backend/data/processed/jobs_cleaned.csv"
-
-
-# =============================================================================
-# PIPELINE
-# =============================================================================
 
 def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
 
@@ -53,9 +35,6 @@ def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
     df["Company Name"] = df["Company Name"].apply(clean_company_name)
 
     # Step 4: Job Title -> job_title + seniority + core_role
-    # job_title  : cleaned text string  -> used for embeddings, NOT direct encoding
-    # seniority  : categorical (8 levels) -> training feature
-    # core_role  : categorical (8 roles)  -> training feature
     print("Step 4: Processing Job Title...")
     parsed = df["Job Title"].apply(parse_job_title).apply(pd.Series)
     df["job_title"] = parsed["job_title"]
@@ -119,9 +98,7 @@ def run_pipeline(input_path: str, output_path: str) -> pd.DataFrame:
     return df
 
 
-# =============================================================================
 # ENTRY POINT
-# =============================================================================
 
 if __name__ == "__main__":
     df_clean = run_pipeline(INPUT_PATH, OUTPUT_PATH)
