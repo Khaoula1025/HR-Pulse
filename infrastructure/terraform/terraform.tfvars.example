@@ -1,7 +1,0 @@
-resource_group_name = "rg-hrpulse-yourname"
-location            = "West Europe"
-sql_server_name     = "hrpulse-sql-server"
-sql_database_name   = "hrpulse-db"
-sql_admin_login     = "hrpulseadmin"
-sql_admin_password  = "ChangeMe123!"
-ai_language_name    = "hrpulse-ai-language"
