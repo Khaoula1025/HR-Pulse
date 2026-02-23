@@ -15,6 +15,10 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.45b0",
     "pandas>=2.0.0",
     "scikit-learn>=1.4.0",
+    "spacy>=3.8.11",
+    "sentence-transformers>=5.2.3",
+    "torch>=2.10.0",
+    "xgboost>=3.2.0",
 ]
 
 [project.optional-dependencies]
