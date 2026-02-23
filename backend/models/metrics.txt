@@ -1,0 +1,30 @@
+SALARY PREDICTION - MODEL METRICS
+==================================================
+Input   : backend/data/processed/jobs_with_embeddings.csv
+Split   : 80/20
+Target  : Salary (winsorized [$52,750, $186,750])
+Features: 7 numeric (50 emb) + 5 categorical
+
+TEST SET RESULTS:
+  Ridge
+    MAE : $25,639
+    RMSE: $32,525
+    R2  : -0.1026
+
+  Random Forest
+    MAE : $23,700
+    RMSE: $31,143
+    R2  : -0.0109
+
+  Gradient Boosting
+    MAE : $25,245
+    RMSE: $33,120
+    R2  : -0.1433
+
+  XGBoost
+    MAE : $25,255
+    RMSE: $33,042
+    R2  : -0.1379
+
+BEST MODEL : Random Forest
+CV MAE     : $26,409 +/- $7,219

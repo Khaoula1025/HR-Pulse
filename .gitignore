@@ -11,6 +11,7 @@ uv.lock
 *.pkl
 *.tfstate
 *.tfstate.backup
+infrastructure/
 .terraform/
 terraform.tfvars
 backend/data/processed/*
