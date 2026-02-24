@@ -1,37 +1,107 @@
-import joblib
 import os
-import pandas as pd # Highly recommended for inspecting features
-from app.schemas.job import PredictionInput
+import joblib
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from app.schemas.prediction import PredictRequest, VALID_SKILLS
 
-# 1. Path Setup
-current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.dirname(os.path.dirname(current_dir))
-MODEL_PATH = os.path.join(backend_dir, "models", "salary_model.pkl")
+MODEL_PATH = Path(os.getenv("MODEL_PATH", "backend/models/salary_model.pkl"))
 
-# 2. Global Model Loading (equivalent to __init__)
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
+# Load once at startup
+_model = None
 
-model = joblib.load(MODEL_PATH)
+def get_model():
+    global _model
+    if _model is None:
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(
+                f"Model not found at {MODEL_PATH}. "
+                "Run train.py first to generate salary_model.pkl"
+            )
+        _model = joblib.load(MODEL_PATH)
+        print(f"✅ Model loaded. Expected features: {_model.feature_names_in_}")
+    return _model
 
-# DEBUG: Print features on startup
-if hasattr(model, 'feature_names_in_'):
-    print(f"✅ Model loaded. Expected features: {model.feature_names_in_}")
-elif hasattr(model, 'get_feature_names_out'):
-    print(f"✅ Pipeline loaded. Features: {model.get_feature_names_out()}")
-else:
-    print("⚠️ Model loaded, but feature names couldn't be detected automatically.")
 
-# 3. The Functional Predictor
-def predict_salary(data: PredictionInput) -> float:
+def build_feature_row(req: PredictRequest) -> pd.DataFrame:
     """
-    Takes PredictionInput and returns the estimated salary.
+    Map PredictRequest fields to the exact feature names the model was trained on.
+
+    Model expects (in this order):
+        Rating, Founded, size_ordinal, revenue_ordinal, has_competitors,
+        is_at_hq, hq_is_international,
+        skill_python, skill_sql, skill_spark, skill_aws, skill_azure,
+        skill_machine_learning, skill_deep_learning, skill_tensorflow,
+        skill_pytorch, skill_tableau, skill_java, skill_scala,
+        skill_hadoop, skill_git, skill_linux, skill_docker,
+        skill_count,
+        Sector, seniority, core_role, type_of_ownership, job_state
     """
-    # Logic to handle the input. 
-    # If your model was trained on a DataFrame, use a DataFrame here too:
-    features = [[data.job_title, len(data.skills)]] 
-    
-    prediction = model.predict(features)
-    
-    # Extract the first value and round
-    return round(float(prediction[0]), 2)
+    # Normalize skills to lowercase for matching
+    skills_lower = [s.lower().replace(" ", "_") for s in req.skills]
+
+    # Build skill binary flags
+    skill_cols = {
+        f"skill_{s}": int(s in skills_lower) for s in VALID_SKILLS
+    }
+
+    row = {
+        # Numeric — exact column names from training
+        "Rating":             req.rating,
+        "Founded":            req.founded,
+        "size_ordinal":       req.size_ordinal,
+        "revenue_ordinal":    req.revenue_ordinal,
+        "has_competitors":    req.has_competitors,
+        "is_at_hq":           req.is_at_hq,
+        "hq_is_international":req.hq_is_international,
+
+        # Skill binary columns
+        **skill_cols,
+
+        # skill_count = number of skills provided
+        "skill_count":        len(req.skills),
+
+        # Categorical — exact column names from training
+        "Sector":             req.sector,
+        "seniority":          req.seniority,
+        "core_role":          req.core_role,
+        "type_of_ownership":  req.type_of_ownership,
+        "job_state":          req.job_state.upper(),
+    }
+
+    return pd.DataFrame([row])
+
+
+def predict(req: PredictRequest) -> dict:
+    """
+    Run salary prediction for a single job.
+
+    Returns:
+        predicted_salary, range_min, range_max, currency,
+        skills_used, input_summary
+    """
+    model = get_model()
+    df    = build_feature_row(req)
+
+    predicted = float(model.predict(df)[0])
+
+    # ±15% confidence range (reflects ~17% MAE on this dataset)
+    range_min = round(predicted * 0.85)
+    range_max = round(predicted * 1.15)
+
+    skills_used = [s for s in req.skills if s.lower().replace(" ", "_") in VALID_SKILLS]
+
+    return {
+        "predicted_salary": round(predicted),
+        "range_min":        range_min,
+        "range_max":        range_max,
+        "currency":         "USD",
+        "skills_used":      skills_used,
+        "input_summary": {
+            "sector":    req.sector,
+            "seniority": req.seniority,
+            "core_role": req.core_role,
+            "state":     req.job_state.upper(),
+            "skills":    req.skills,
+        },
+    }
