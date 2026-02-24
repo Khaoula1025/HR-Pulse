@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from app.database import get_db
+from app.db.session import get_db
 from app.models.job import Job
 from app.schemas.job import JobResponse
 
