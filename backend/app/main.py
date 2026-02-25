@@ -1,16 +1,9 @@
-from contextlib import asynccontextmanager
+# from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.routers import jobs, predictor
-from app.telemetry.otel import setup_telemetry
+from app.api.v1.endpoints import jobs, predictor
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    setup_telemetry()
-    yield
-
-
-app = FastAPI(title="HR-Pulse API", lifespan=lifespan)
+app = FastAPI(title="HR-Pulse API")
 
 app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 app.include_router(predictor.router, prefix="/predict", tags=["predictor"])
