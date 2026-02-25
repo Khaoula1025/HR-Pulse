@@ -1,12 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException , Depends
 from app.schemas.prediction import PredictRequest, PredictResponse, VALID_SKILLS
 from app.services.predictor_service import predict
-
+from app.api.deps import get_current_user
 router = APIRouter()
 
 
 @router.post("", response_model=PredictResponse)
-def predict_salary(req: PredictRequest):
+def predict_salary(
+    req: PredictRequest,
+   current_user = Depends(get_current_user)
+                   ):
     """
     Predict the estimated salary for a job posting.
 

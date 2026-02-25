@@ -5,13 +5,14 @@ from typing import List, Optional
 from app.models.job import Job
 from app.db.session import get_db
 from app.schemas.job import JobResponse
-
+from app.api.deps import get_current_user
 router = APIRouter()
 
-@router.get("/", response_model=List[JobResponse])
+@router.get("/", response_model=List[JobResponse], )
 def read_jobs(
     db: Session = Depends(get_db),
-    skill: Optional[str] = Query(None)
+    skill: Optional[str] = Query(None),
+    current_user = Depends(get_current_user)
 ):
     query = db.query(Job)
     if skill:
