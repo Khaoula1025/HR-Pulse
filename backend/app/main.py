@@ -4,7 +4,7 @@ from app.api.v1.endpoints import jobs, predictor
 from app.api.v1.endpoints import auth
 from app.models import user
 from app.db.session import Base, engine
-
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="HR-Pulse API")
 
 Base.metadata.create_all(bind=engine)
