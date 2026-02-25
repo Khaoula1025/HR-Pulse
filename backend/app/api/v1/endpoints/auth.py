@@ -8,7 +8,7 @@ from app.api.deps import signJwt, get_current_user
 from app.core.security import hash_password, verify_password
 from sqlalchemy import or_
 
-router = APIRouter(prefix="/auth")
+router = APIRouter()
 
 
 @router.post("/signUp")

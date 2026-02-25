@@ -1,118 +1,172 @@
 "use client";
-import React, { useState } from 'react';
-import axios from 'axios';
-import { Calculator, Sparkles, Plus, X } from 'lucide-react';
+import { useState, useEffect } from "react";
 
-export default function PredictorPage() {
-  const [jobTitle, setJobTitle] = useState('');
-  const [currentSkill, setCurrentSkill] = useState('');
-  const [skills, setSkills] = useState<string[]>([]);
-  const [prediction, setPrediction] = useState<number | null>(null);
+export default function Predict() {
+  const [skillsList, setSkillsList] = useState<string[]>([]);
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const addSkill = (e: React.FormEvent) => {
+  const [form, setForm] = useState({
+    company_name: "",
+    job_title: "",
+    location: "",
+    skills: [] as string[],
+    rating: 3.5,
+    founded: 2000,
+    size_ordinal: 3, // e.g., 501 to 1000 employees
+    revenue_ordinal: 2, // e.g., $100 to $500 million
+    type_of_ownership: "Private Practice / Firm",
+    has_competitors: false,
+    job_state: "NY",
+    sector: "Information Technology",
+    seniority: "na",
+    core_role: "data scientist"
+  });
+
+  useEffect(() => {
+    // Fetch valid skills from your predictor endpoint
+    fetch("/api/predict/skills")
+      .then((res) => res.json())
+      .then((data) => setSkillsList(data.skills));
+  }, []);
+
+  const handlePredict = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentSkill && !skills.includes(currentSkill)) {
-      setSkills([...skills, currentSkill]);
-      setCurrentSkill('');
-    }
-  };
-
-  const removeSkill = (skillToRemove: string) => {
-    setSkills(skills.filter(s => s !== skillToRemove));
-  };
-
-  const handlePredict = async () => {
     setLoading(true);
     try {
-      // Ensure this URL matches your FastAPI server address
-      const response = await axios.post('http://127.0.0.1:8000/app/api/v1/endpoints/predictor', {
-        job_title: jobTitle,
-        skills: skills
+      const res = await fetch("/api/predict", { // Hits router.post("") in predictor.py
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
       });
-      setPrediction(response.data.estimated_salary);
-    } catch (error) {
-      console.error("Prediction failed", error);
-      alert("Failed to get prediction. Is the backend running?");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail?.[0]?.msg || "Prediction failed");
+      setResult(data);
+    } catch (err: any) {
+      alert(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">AI Salary Predictor</h1>
-        <p className="text-gray-600">Enter your details to see your estimated market value.</p>
-      </div>
+  const toggleSkill = (skill: string) => {
+    setForm(prev => ({
+      ...prev,
+      skills: prev.skills.includes(skill) 
+        ? prev.skills.filter(s => s !== skill) 
+        : [...prev.skills, skill]
+    }));
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Input Section */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
-            <input 
-              type="text"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="e.g. Data Scientist"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+  return (
+    <div className="p-6 bg-slate-900 min-h-screen text-slate-200">
+      <h1 className="text-3xl font-bold mb-8 text-indigo-400">Salary Estimator</h1>
+      
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* FORM SECTION */}
+        <form onSubmit={handlePredict} className="lg:col-span-2 space-y-6 bg-slate-800 p-6 rounded-xl border border-slate-700">
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Company Name</label>
+              <input required className="w-full p-2 bg-slate-700 rounded border border-slate-600" onChange={e => setForm({...form, company_name: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Job Title</label>
+              <input required className="w-full p-2 bg-slate-700 rounded border border-slate-600" onChange={e => setForm({...form, job_title: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Location (City)</label>
+              <input required className="w-full p-2 bg-slate-700 rounded border border-slate-600" onChange={e => setForm({...form, location: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">State (e.g. NY)</label>
+              <input required className="w-full p-2 bg-slate-700 rounded border border-slate-600" onChange={e => setForm({...form, job_state: e.target.value})} />
+            </div>
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Skills</label>
-            <form onSubmit={addSkill} className="flex gap-2 mb-3">
-              <input 
-                type="text"
-                value={currentSkill}
-                onChange={(e) => setCurrentSkill(e.target.value)}
-                placeholder="Add a skill (e.g. Python)"
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg outline-none"
-              />
-              <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">
-                <Plus size={20} />
-              </button>
-            </form>
-            
-            <div className="flex flex-wrap gap-2">
-              {skills.map(skill => (
-                <span key={skill} className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                  {skill}
-                  <button onClick={() => removeSkill(skill)}><X size={14}/></button>
-                </span>
+          <hr className="border-slate-700" />
+
+          <div className="grid md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label className="block mb-1">Rating (0-5)</label>
+              <input type="number" step="0.1" value={form.rating} className="w-full p-2 bg-slate-700 rounded" onChange={e => setForm({...form, rating: parseFloat(e.target.value)})} />
+            </div>
+            <div>
+              <label className="block mb-1">Year Founded</label>
+              <input type="number" value={form.founded} className="w-full p-2 bg-slate-700 rounded" onChange={e => setForm({...form, founded: parseInt(e.target.value)})} />
+            </div>
+            <div>
+              <label className="block mb-1">Seniority</label>
+              <select className="w-full p-2 bg-slate-700 rounded" onChange={e => setForm({...form, seniority: e.target.value})}>
+                <option value="na">N/A</option>
+                <option value="jr">Junior</option>
+                <option value="sr">Senior</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Required Skills</label>
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-3 bg-slate-900 rounded border border-slate-700">
+              {skillsList.map(s => (
+                <button 
+                  type="button" 
+                  key={s} 
+                  onClick={() => toggleSkill(s)}
+                  className={`px-3 py-1 rounded-full text-xs transition ${form.skills.includes(s) ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                >
+                  {s}
+                </button>
               ))}
             </div>
           </div>
 
           <button 
-            onClick={handlePredict}
-            disabled={loading || !jobTitle}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-indigo-700 disabled:bg-gray-300 transition-colors"
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-bold text-white transition disabled:opacity-50"
           >
-            {loading ? "Calculating..." : <><Calculator size={20}/> Predict Salary</>}
+            {loading ? "Calculating..." : "Predict Salary"}
           </button>
-        </div>
+        </form>
 
-        {/* Result Section */}
-        <div className="bg-indigo-900 rounded-2xl p-8 text-white flex flex-col justify-center items-center text-center">
-          {!prediction ? (
-            <>
-              <Sparkles size={48} className="text-indigo-300 mb-4 animate-pulse" />
-              <p className="text-indigo-200">Enter your details and click predict to see the magic happen.</p>
-            </>
-          ) : (
-            <div className="animate-in fade-in zoom-in duration-500">
-              <h2 className="text-indigo-300 uppercase tracking-widest text-sm font-bold mb-2">Estimated Annual Salary</h2>
-              <div className="text-6xl font-extrabold mb-4">
-                ${prediction.toLocaleString()}
-              </div>
-              <p className="text-indigo-200 text-sm">
-                Based on your profile and current market trends in our dataset.
-              </p>
-            </div>
-          )}
+        {/* RESULTS SECTION */}
+<div className="space-y-6">
+  <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 min-h-[300px] flex flex-col items-center justify-center text-center">
+    {result ? (
+      <>
+        <p className="text-slate-400 uppercase text-xs tracking-widest mb-2">
+          Estimated Annual Salary ({result.currency})
+        </p>
+        <h2 className="text-5xl font-black text-emerald-400 mb-4">
+          {/* Use predicted_salary instead of estimated_salary */}
+          ${result.predicted_salary?.toLocaleString()}
+        </h2>
+        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 w-full">
+          <p className="text-sm text-slate-300">Confidence Interval</p>
+          <p className="text-lg font-mono text-indigo-300">
+            {/* Use range_min and range_max */}
+            ${result.range_min?.toLocaleString()} - ${result.range_max?.toLocaleString()}
+          </p>
         </div>
+        
+        {/* Optional: Show which skills actually influenced the price */}
+        <div className="mt-6 w-full text-left">
+          <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Skills Factored In:</p>
+          <div className="flex flex-wrap gap-1">
+            {result.skills_used?.map((s: string) => (
+              <span key={s} className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      </>
+    ) : (
+      <p className="text-slate-500 italic">Fill out the form to generate a prediction</p>
+    )}
+  </div>
+</div>
       </div>
     </div>
   );

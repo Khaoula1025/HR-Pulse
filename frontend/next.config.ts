@@ -1,8 +1,14 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        // This matches all routes starting with /api and sends them to FastAPI
+        source: '/api/:path*',
+        destination: 'http://127.0.0.1:8000/:path*', 
+      },
+    ]
+  },
+}
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  reactCompiler: true,
-};
-
-export default nextConfig;
+module.exports = nextConfig
