@@ -8,10 +8,10 @@ from app.api.deps import signJwt, get_current_user
 from app.core.security import hash_password, verify_password
 from sqlalchemy import or_
 
-authRouter = APIRouter(prefix="/auth")
+router = APIRouter(prefix="/auth")
 
 
-@authRouter.post("/signUp")
+@router.post("/signUp")
 async def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
     found = db.query(User).filter(User.email == user.email).first()
@@ -26,7 +26,7 @@ async def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return {"message": "Sign up successful"}
 
 
-@authRouter.post('/login')
+@router.post('/login')
 async def login(response: Response, user: UserLogin, db: Session = Depends(get_db)):
 
     found = db.query(User).filter(
@@ -51,7 +51,7 @@ async def login(response: Response, user: UserLogin, db: Session = Depends(get_d
     return {"message": "Login successful"}
 
 
-@authRouter.post('/logout')
+@router.post('/logout')
 async def logout(response: Response):
     response.delete_cookie(
         key="access_token",
@@ -62,7 +62,7 @@ async def logout(response: Response):
     return {'message': 'logout succesful', 'code': 200}
 
 
-@authRouter.get('/verifyToken')
+@router.get('/verifyToken')
 def verifyToken(current_user: str = Depends(get_current_user)):
 
     if not current_user:
