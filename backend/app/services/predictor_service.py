@@ -1,11 +1,10 @@
 import os
 import joblib
-import numpy as np
 import pandas as pd
 from pathlib import Path
 from app.schemas.prediction import PredictRequest, VALID_SKILLS
 
-MODEL_PATH = Path(os.getenv("MODEL_PATH", "backend/models/salary_model.pkl"))
+MODEL_PATH = Path(os.getenv("MODEL_PATH", "models/salary_model.pkl"))
 
 # Load once at startup
 _model = None

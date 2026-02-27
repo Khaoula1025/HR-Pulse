@@ -22,7 +22,7 @@ class JobResponse(BaseModel):
         if isinstance(v, str):
             try:
                 return json.loads(v)
-            except:
+            except Exception:
                 return []
         return v
     

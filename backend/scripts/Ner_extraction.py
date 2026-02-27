@@ -134,7 +134,7 @@ def run( input_csv: str = "backend/data/processed/jobs_cleaned.csv", output_csv:
     client = get_client()
 
     # Extraction
-    print(f"\n Envoi à Azure AI Language (batch=5)...")
+    print("\n Envoi à Azure AI Language (batch=5)...")
     start = time.time()
     skills_list = extract_skills_azure(client, df["Job Description"].fillna("").tolist())   
     elapsed = time.time() - start
@@ -143,7 +143,7 @@ def run( input_csv: str = "backend/data/processed/jobs_cleaned.csv", output_csv:
 
     # Stats
     all_skills = [s for row in skills_list for s in json.loads(row)]
-    print(f"\n=== RÉSULTATS ===")
+    print("\n=== RÉSULTATS ===")
     print(f"  Durée totale          : {elapsed:.1f}s")
     print(f"  Total skills extraits : {len(all_skills)}")
     print(f"  Moyenne par offre     : {len(all_skills)/len(df):.1f}")
@@ -152,7 +152,7 @@ def run( input_csv: str = "backend/data/processed/jobs_cleaned.csv", output_csv:
     # Top 10
     from collections import Counter
     top = Counter(all_skills).most_common(10)
-    print(f"\n  Top 10 compétences :")
+    print("\n  Top 10 compétences :")
     for skill, count in top:
         bar = "█" * int(count / max(c for _, c in top) * 20)
         print(f"    {skill:<20} {bar} {count}")

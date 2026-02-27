@@ -116,7 +116,7 @@ def verify(engine):
         ).fetchall()
 
     print(f"\n  Total rows in table: {count}")
-    print(f"\n  Sample rows:")
+    print("\n  Sample rows:")
     for row in sample:
         print(f"    id={row[0]} | title={row[1]} | skills={row[2]}...")
 
@@ -144,7 +144,7 @@ def run():
     df_clean = prepare_data(df)
     print(f"  Rows to insert : {len(df_clean)}")
     print(f"  Columns        : {df_clean.columns.tolist()}")
-    print(f"\n  Sample row:")
+    print("\n  Sample row:")
     row = df_clean.iloc[0]
     print(f"    id             : {row['id']}")
     print(f"    job_title      : {row['job_title']}")

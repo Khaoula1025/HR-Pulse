@@ -1,22 +1,18 @@
-# Stage 1: Building the app
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
+ARG INTERNAL_API_URL=http://backend:8000
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
 RUN npm run build
 
-# Stage 2: Production runner
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-
-# Copy only necessary files from builder
-COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

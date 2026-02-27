@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function JobsPage() {
+function JobsContent() {
   const searchParams = useSearchParams();
   const [skillsList, setSkillsList] = useState<string[]>([]);
   const [selectedSkill, setSelectedSkill] = useState(searchParams.get("skill") || "");
@@ -23,15 +23,14 @@ export default function JobsPage() {
     setLoading(true);
     setError("");
     try {
-      // Use the trailing slash as defined in your router
-      const url = selectedSkill 
-        ? `/api/jobs/?skill=${encodeURIComponent(selectedSkill)}` 
+      const url = selectedSkill
+        ? `/api/jobs/?skill=${encodeURIComponent(selectedSkill)}`
         : "/api/jobs/";
 
       const res = await fetch(url, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // CRITICAL for "not authentified" fix
+        credentials: "include",
       });
 
       if (res.status === 401) {
@@ -62,7 +61,7 @@ export default function JobsPage() {
         <div className="flex flex-col md:flex-row gap-4 mb-10 p-6 bg-slate-800 rounded-xl border border-slate-700 shadow-xl">
           <div className="flex-1">
             <label className="block text-sm text-slate-400 mb-2 font-medium">Filter by Required Skill</label>
-            <select 
+            <select
               className="w-full bg-slate-700 border border-slate-600 p-3 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 outline-none"
               value={selectedSkill}
               onChange={(e) => setSelectedSkill(e.target.value)}
@@ -74,7 +73,7 @@ export default function JobsPage() {
             </select>
           </div>
           <div className="flex items-end">
-            <button 
+            <button
               onClick={handleSearch}
               disabled={loading}
               className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-500 px-8 py-3 rounded-lg font-bold transition disabled:opacity-50"
@@ -100,7 +99,6 @@ export default function JobsPage() {
                     {job.location}
                   </span>
                 </div>
-                
                 <div className="flex flex-wrap gap-2 mt-4">
                   {job.skills_extracted?.map((s: string) => (
                     <span key={s} className="bg-slate-900 text-slate-400 border border-slate-700 px-2 py-1 rounded text-xs">
@@ -111,10 +109,22 @@ export default function JobsPage() {
               </div>
             ))
           ) : (
-            !loading && <p className="text-slate-500 col-span-2 text-center py-20 border-2 border-dashed border-slate-800 rounded-xl">No jobs found matching this skill.</p>
+            !loading && (
+              <p className="text-slate-500 col-span-2 text-center py-20 border-2 border-dashed border-slate-800 rounded-xl">
+                No jobs found matching this skill.
+              </p>
+            )
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function JobsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-slate-400">Loading...</div>}>
+      <JobsContent />
+    </Suspense>
   );
 }

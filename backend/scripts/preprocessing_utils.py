@@ -1,7 +1,6 @@
 import re
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 # 1. replace -1 sentinels with NaN (numeric) or 'Unknown' (categorical)
 def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:

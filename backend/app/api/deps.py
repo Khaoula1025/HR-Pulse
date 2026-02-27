@@ -1,5 +1,5 @@
 # Dependencies (get_current_user, get_db)
-from fastapi import Depends , Cookie , HTTPException , status
+from fastapi import Depends , Cookie , HTTPException
 from jose import jwt ,JWTError
 import time
 from app.db.session import sessionmaker,get_db

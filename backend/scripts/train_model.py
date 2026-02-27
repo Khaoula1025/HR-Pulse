@@ -1,6 +1,5 @@
 import json
 import warnings
-import numpy as np
 import pandas as pd
 from pathlib import Path
 
@@ -269,4 +268,4 @@ if __name__ == "__main__":
     print(f"  Best model : {best_name}")
     print(f"  MAE        : ${metrics['mae']:,.0f}")
     print(f"  R²         : {metrics['r2']:.4f}")
-    print(f"  Saved to   : backend/models/salary_model.pkl")
+    print("  Saved to   : backend/models/salary_model.pkl")
