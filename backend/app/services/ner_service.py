@@ -1,12 +1,16 @@
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
-from app.config import settings
+from dotenv import load_dotenv
+import os
+load_dotenv()
+API_KEY = os.getenv('API_KEY')
+ENDPOINT = os.getenv('ENDPOINT')
 
 
 def get_client() -> TextAnalyticsClient:
     return TextAnalyticsClient(
-        endpoint=settings.azure_language_endpoint,
-        credential=AzureKeyCredential(settings.azure_language_key),
+        endpoint=ENDPOINT,
+        credential=AzureKeyCredential(API_KEY),
     )
 
 

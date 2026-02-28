@@ -1,13 +1,18 @@
-FROM python:3.12-slim
-
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-RUN pip install uv
-
-COPY pyproject.toml .
-RUN uv sync --no-dev
-
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
+ARG INTERNAL_API_URL=http://backend:8000
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
+RUN npm run build
 
-EXPOSE 8501
-CMD ["uv", "run", "streamlit", "run", "app/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+CMD ["node", "server.js"]

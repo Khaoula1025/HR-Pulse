@@ -3,7 +3,7 @@ name = "hr-pulse-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.111.0",
+    "fastapi[standard]>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "sqlalchemy>=2.0.0",
     "pyodbc>=5.0.0",
@@ -15,6 +15,13 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.45b0",
     "pandas>=2.0.0",
     "scikit-learn>=1.4.0",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.0.1",
+    "python-dotenv==1.0.0",
+    "pydantic[email]>=2.12.5",
+    "pytest>=9.0.2",
+    "ruff>=0.15.1",
 ]
 
 [project.optional-dependencies]

@@ -1,35 +1,38 @@
 services:
+
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
       - "16686:16686"
       - "4317:4317"
-    networks:
-      - hr-pulse-network
 
   backend:
-    build: ./backend
+    build:
+      context: .                       # ← project root
+      dockerfile: backend/Dockerfile
+    container_name: fastapi_backend
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file:
+      - .env
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_SERVICE_NAME=hr-pulse-backend
     depends_on:
       - jaeger
-    networks:
-      - hr-pulse-network
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - INTERNAL_API_URL=http://backend:8000   # ← add this
+    container_name: nextjs_frontend
     ports:
-      - "8501:8501"
+      - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - BACKEND_URL=http://backend:8000
+      - INTERNAL_API_URL=http://backend:8000
     depends_on:
       - backend
-    networks:
-      - hr-pulse-network
-
-networks:
-  hr-pulse-network:
-    driver: bridge

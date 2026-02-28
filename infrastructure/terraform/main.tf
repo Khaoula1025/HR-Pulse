@@ -1,3 +1,4 @@
+# ADD THIS AT THE TOP
 terraform {
   required_providers {
     azurerm = {
@@ -10,35 +11,24 @@ terraform {
     }
   }
 }
-
 provider "azurerm" {
   features {}
 }
 
-# Azure SQL Server
-resource "azurerm_mssql_server" "sql_server" {
-  name                         = var.sql_server_name
-  resource_group_name          = var.resource_group_name
-  location                     = var.location
-  version                      = "12.0"
-  administrator_login          = var.sql_admin_login
-  administrator_login_password = var.sql_admin_password
+# 1. On pointe vers le serveur du formateur
+data "azurerm_mssql_server" "formateur_server" {
+  name                = "sql-server-hr-pulse-2026"
+  resource_group_name = "RG-HR-PULSE-MGMT-YENNAYA" # Ton RG de formateur
 }
+resource "azurerm_mssql_database" "db_student" {
+  name      = "db-khaoula"
+  server_id = data.azurerm_mssql_server.formateur_server.id
 
-# Azure SQL Database (Serverless)
-resource "azurerm_mssql_database" "sql_db" {
-  name           = var.sql_database_name
-  server_id      = azurerm_mssql_server.sql_server.id
-  sku_name       = "GP_S_Gen5_1"
-  min_capacity   = 0.5
-  auto_pause_delay_in_minutes = 60
-}
+  # Configuration Serverless
+  sku_name     = "GP_S_Gen5_1"
+  min_capacity = 0.5
+  max_size_gb  = 2
 
-# Azure AI Language
-resource "azurerm_cognitive_account" "ai_language" {
-  name                = var.ai_language_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  kind                = "TextAnalytics"
-  sku_name            = "S"
+  # L'option magique pour économiser :
+  auto_pause_delay_in_minutes = 15
 }
