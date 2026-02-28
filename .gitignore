@@ -17,3 +17,4 @@ terraform.tfvars
 backend/data/processed/*
 !backend/data/processed/.gitkeep
 backend/ml/*.pkl
+frontend/node_modules/
