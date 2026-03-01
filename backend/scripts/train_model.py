@@ -43,8 +43,6 @@ CATEGORICAL_FEATURES = [
     "job_state",
 ]
 
-# Skills to extract as binary features from skills_extracted JSON column
-# Curated list: >5% coverage + salary-relevant (excludes noise like "r" at 97%)
 SKILL_FLAGS = {
     "skill_python":          "python",
     "skill_sql":             "sql",
@@ -70,11 +68,7 @@ SKILL_COLS = list(SKILL_FLAGS.keys())
 # FEATURE ENGINEERING
 
 def build_skill_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Parse skills_extracted JSON column and create:
-    - One binary column per skill in SKILL_FLAGS (1 if skill present, 0 if not)
-    - skill_count: total number of unique skills found in the job description
-    """
+
     def parse_skills(val):
         if isinstance(val, str):
             try:

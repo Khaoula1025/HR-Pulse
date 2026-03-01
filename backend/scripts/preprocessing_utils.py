@@ -2,12 +2,8 @@ import re
 import numpy as np
 import pandas as pd
 
-# 1. replace -1 sentinels with NaN (numeric) or 'Unknown' (categorical)
+# 1. replace -1 sentinels with NaN or 'Unknown'
 def replace_negative_ones(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Replaces -1 sentinel values with NaN (numeric) or 'Unknown' (categorical).
-    Binarizes the Competitors column due to ~75% missingness.
-    """
     df = df.copy()
 
     # Numeric: -1 → NaN
@@ -78,10 +74,7 @@ EEO_CUTOFF_PATTERNS = [
 
 
 def clean_for_embedding(text: str) -> str:
-    """
-    Minimal cleaning for job descriptions destined for HuggingFace embedding.
-    Preserves linguistic structure; removes only technical noise and boilerplate.
-    """
+
     if pd.isna(text):
         return ""
 
@@ -150,19 +143,6 @@ ROLE_MAP = {
 
 
 def parse_job_title(title: str) -> dict:
-    """
-    Cleans a job title and extracts seniority + core role in one pass.
-
-    Returns a dict with three keys:
-      - job_title  : cleaned, lowercased title (used for embeddings if needed)
-      - seniority  : seniority level extracted from raw title
-      - core_role  : standardized role category (8 categories + 'Other')
-
-    Keeping job_title and core_role as separate columns is intentional:
-      - job_title  → too high cardinality (169 unique) for direct encoding;
-                     useful only as text input for embeddings
-      - core_role  → 8 clean categories, directly encodable as a feature
-    """
     if pd.isna(title):
         return {"job_title": title, "seniority": "Mid-level", "core_role": "Other"}
 
@@ -190,17 +170,7 @@ def parse_job_title(title: str) -> dict:
 
 # 5. SALARY — parse string to numeric midpoint
 def process_salary(salary_str: str) -> float | None:
-    """
-    Parses a salary string into a float midpoint.
-    Handles K (thousands) and M (millions) multipliers correctly:
-    M multiplier is only applied when K is absent to avoid the
-    '$145K-$225K(Employer est.)' → $185,000,000 bug.
-
-    Examples:
-        '$137K-$171K (Glassdoor est.)' → 154000.0
-        '$1.2M-$1.5M (Glassdoor est.)' → 1350000.0
-        '$145K-$225K(Employer est.)'   → 185000.0
-    """
+   
     if not isinstance(salary_str, str) or salary_str.lower() == "nan":
         return None
     try:
@@ -311,19 +281,7 @@ def handle_outliers_and_nulls(
     iqr_multiplier: float = 1.5,
     z_threshold: float = 3.0,
 ) -> pd.DataFrame:
-    """
-    Handles outliers and missing values — call at the end of the pipeline
-    after all columns have been created.
-
-    Outlier strategy:
-      - Salary    : winsorized at IQR bounds
-      - Rating    : z-score clip at ±3 std (valid range 0–5)
-      - Founded   : IQR winsorize (very old years valid but distorting)
-
-    Null strategy:
-      - Numeric / ordinal  → median imputation
-      - Categorical        → fill with 'Unknown'
-    """
+    
     df = df.copy()
 
     def iqr_bounds(series: pd.Series):
@@ -332,9 +290,7 @@ def handle_outliers_and_nulls(
         IQR = Q3 - Q1
         return Q1 - iqr_multiplier * IQR, Q3 + iqr_multiplier * IQR
 
-    # ------------------------------------------------------------------
     # 1. SALARY — drop nulls then winsorize
-    # ------------------------------------------------------------------
     if "Salary" in df.columns:
         nulls = df["Salary"].isna().sum()
         if nulls > 0:
@@ -343,9 +299,7 @@ def handle_outliers_and_nulls(
         lower, upper = iqr_bounds(df["Salary"])
         df["Salary"] = df["Salary"].clip(lower=lower, upper=upper)
 
-    # ------------------------------------------------------------------
     # 2. RATING — z-score clip then median impute
-    # ------------------------------------------------------------------
     if "Rating" in df.columns:
         valid_rating = df["Rating"].dropna()
         if len(valid_rating) > 1:
@@ -356,9 +310,7 @@ def handle_outliers_and_nulls(
             )
         df["Rating"] = df["Rating"].fillna(df["Rating"].median())
 
-    # ------------------------------------------------------------------
     # 3. FOUNDED — IQR winsorize then median impute
-    # ------------------------------------------------------------------
     if "Founded" in df.columns:
         valid_founded = df["Founded"].dropna()
         if len(valid_founded) > 1:
@@ -366,16 +318,12 @@ def handle_outliers_and_nulls(
             df["Founded"] = df["Founded"].clip(lower=lower_f, upper=upper_f)
         df["Founded"] = df["Founded"].fillna(df["Founded"].median())
 
-    # ------------------------------------------------------------------
     # 4. ORDINAL FEATURES — median impute
-    # ------------------------------------------------------------------
     for col in ["size_ordinal", "revenue_ordinal"]:
         if col in df.columns and df[col].isna().sum() > 0:
             df[col] = df[col].fillna(df[col].median())
 
-    # ------------------------------------------------------------------
     # 5. CATEGORICAL FEATURES — fill with 'Unknown'
-    # ------------------------------------------------------------------
     cat_cols = ["job_state", "hq_state", "type_of_ownership",
                 "Sector", "seniority", "core_role"]
     for col in cat_cols:
