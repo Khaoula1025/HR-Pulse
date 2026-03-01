@@ -20,7 +20,6 @@ def get_model():
         _model = joblib.load(MODEL_PATH)
         print(f"✅ Model loaded. Expected features: {_model.feature_names_in_}")
     return _model
-get_model()  # Load model at startup
 
 
 def build_feature_row(req: PredictRequest) -> pd.DataFrame:
