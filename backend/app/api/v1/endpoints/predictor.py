@@ -10,12 +10,6 @@ def predict_salary(
     req: PredictRequest,
    current_user = Depends(get_current_user)
                    ):
-    """
-    Predict the estimated salary for a job posting.
-
-    Provide company info, job details, location, and required skills.
-    Returns a predicted salary with a ±15% confidence range.
-    """
     try:
         result = predict(req)
         return PredictResponse(**result)
